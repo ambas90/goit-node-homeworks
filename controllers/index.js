@@ -17,7 +17,8 @@ const contactSchema = Joi.object({
 
 const getAllContacts = async (req, res, next) => {
   try {
-    const contacts = await fetchContacts();
+    const userId = req.user._id;
+    const contacts = await fetchContacts(userId);
     res.json(contacts);
   } catch (error) {
     next(error);
@@ -26,7 +27,8 @@ const getAllContacts = async (req, res, next) => {
 
 const getContactById = async (req, res, next) => {
   try {
-    const contact = await fetchContact(req.params.id);
+    const userId = req.user._id;
+    const contact = await fetchContact(userId, req.params.id);
     if (contact) {
       res.json(contact);
     } else {
@@ -39,12 +41,18 @@ const getContactById = async (req, res, next) => {
 
 const createContact = async (req, res, next) => {
   const { name, email, phone, favorite } = req.body;
+  const userId = req.user._id;
   try {
     const { error } = contactSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
     }
-    const result = await insertContact({ name, email, phone, favorite });
+    const result = await insertContact(userId, {
+      name,
+      email,
+      phone,
+      favorite,
+    });
     res.status(201).json(result);
   } catch (error) {
     next(error);
@@ -53,13 +61,14 @@ const createContact = async (req, res, next) => {
 
 const putContact = async (req, res, next) => {
   const { id } = req.params;
+  const userId = req.user._id;
 
   try {
     const { error } = contactSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ message: "missing fields" });
     }
-    const result = await updadeContact({ id, toUpdate: req.body });
+    const result = await updadeContact(userId, { id, toUpdate: req.body });
     if (!result) {
       next();
     } else {
@@ -72,8 +81,9 @@ const putContact = async (req, res, next) => {
 
 const deleteContact = async (req, res, next) => {
   const { id } = req.params;
+  const userId = req.user._id;
   try {
-    await removeContact(id);
+    await removeContact(userId, id);
     res.status(204).json({ message: "contact deleted" });
   } catch (error) {
     next(error);
@@ -83,11 +93,12 @@ const deleteContact = async (req, res, next) => {
 const patchContact = async (req, res, next) => {
   const { id } = req.params;
   const { favorite } = req.body;
+  const userId = req.user._id;
   try {
     if (!favorite) {
       return res.status(400).json({ message: "Missing field favorite" });
     }
-    const result = await updateStatusContact({ id, favorite });
+    const result = await updateStatusContact(userId, { id, favorite });
     if (!result) {
       next();
     } else {
