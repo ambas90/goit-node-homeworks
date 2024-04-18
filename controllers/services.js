@@ -1,29 +1,34 @@
-const Contact = require("../models/Contact");
-const fetchContacts = () => {
-  return Contact.find();
+const Contact = require("../models/contact");
+const fetchContacts = (userId) => {
+  return Contact.find({ owner: userId });
 };
 
-const fetchContact = (id) => {
-  return Contact.findById({ _id: id });
+const fetchContact = (userId, id) => {
+  return Contact.findOne({ _id: id, owner: userId });
 };
 
-const insertContact = ({ name, email, phone, favorite }) => {
-  return Contact.create({ name, email, phone, favorite });
+const insertContact = (userId, { name, email, phone, favorite }) => {
+  return Contact.create({ name, email, phone, favorite, owner: userId });
 };
 
-const updadeContact = async ({ id, toUpdate, upsert = false }) => {
-  return Contact.findByIdAndUpdate(
-    { _id: id },
+const updadeContact = async (userId, { id, toUpdate, upsert = false }) => {
+  return Contact.findOneAndUpdate(
+    { _id: id, owner: userId },
     { $set: toUpdate },
     { new: true, runValidators: true, strict: "throw", upsert }
   );
 };
 
-const updateStatusContact = async ({ id, favorite }) => {
-  return Contact.findByIdAndUpdate({ _id: id }, { favorite }, { new: true });
+const updateStatusContact = async (userId, { id, favorite }) => {
+  return Contact.findOneAndUpdate(
+    { _id: id, owner: userId },
+    { favorite },
+    { new: true }
+  );
 };
 
-const removeContact = (id) => Contact.deleteOne({ _id: id });
+const removeContact = (userId, id) =>
+  Contact.findOneAndDelete({ _id: id, owner: userId });
 
 module.exports = {
   fetchContacts,
