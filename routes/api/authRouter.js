@@ -6,8 +6,10 @@ const authMiddleware = require("../../middleware/jwt.js");
 const gravatar = require("gravatar");
 const fs = require("fs").promises;
 const path = require("path");
-const multer = require("multer");
 const { v4: uuidV4 } = require("uuid");
+const uploadMiddleware = require("../../middleware/uploadMiddleware.js");
+const storeAvatarDir = path.join(__dirname, "../../public/avatars");
+const isImageAndTransform = require("../../helpers/helpers.js");
 
 const router = express.Router();
 
@@ -119,45 +121,10 @@ router.get("/current", authMiddleware, async (req, res, next) => {
   }
 });
 
-// konfiguracja multera
-
-const tempDir = path.join(process.cwd(), "../../temp");
-const storeAvatarDir = path.join(process.cwd(), "../../public/avatars");
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, tempDir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${uuidV4()}${file.originalname}`);
-  },
-});
-
-const extensionWhiteList = [".jpg", ".jpeg", ".png", ".gif"];
-const mimetypeWhiteList = ["image/png", "image/jpg", "image/jpeg", "image/gif"];
-
-const uploadMiddleware = multer({
-  storage,
-  fileFilter: async (req, file, cb) => {
-    const extension = path.extname(file.originalname).toLowerCase();
-    const mimetype = file.mimetype;
-    if (
-      !extensionWhiteList.includes(extension) ||
-      !mimetypeWhiteList.includes(mimetype)
-    ) {
-      return cb(null, false);
-    }
-    return cb(null, true);
-  },
-  limits: {
-    fileSize: 1024 * 1024 * 5,
-  },
-});
-
 router.post(
   "/avatars",
   authMiddleware,
-  uploadMiddleware.single("picture"),
+  uploadMiddleware.single("avatar"),
   async (req, res, next) => {
     if (!req.file) {
       return res.status(400).json({ message: "File isn't a photo" });
@@ -167,8 +134,24 @@ router.post(
     const fileName = `${uuidV4()}${extension}`;
     const filePath = path.join(storeAvatarDir, fileName);
 
+    const isValidAndTransform = await isImageAndTransform(temporaryPath);
+    if (!isValidAndTransform) {
+      await fs.unlink(temporaryPath);
+      return res
+        .status(400)
+        .json({ message: "File isnt a photo but is pretending" });
+    }
+
+    try {
+      await fs.rename(temporaryPath, filePath);
+    } catch (error) {
+      await fs.unlink(temporaryPath);
+      return next(error);
+    }
+
     try {
       const currentUser = res.locals.user;
+      currentUser.avatarURL = `/avatars/${fileName}`;
       return res.status(200).json({ avatarURL: currentUser.avatarURL });
     } catch (err) {
       next(err);
