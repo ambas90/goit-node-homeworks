@@ -162,7 +162,6 @@ router.post(
     if (!req.file) {
       return res.status(400).json({ message: "File isn't a photo" });
     }
-
     const { path: temporaryPath } = req.file;
     const extension = path.extname(temporaryPath);
     const fileName = `${uuidV4()}${extension}`;
