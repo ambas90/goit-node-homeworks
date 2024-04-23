@@ -3,6 +3,11 @@ const User = require("../../models/user.js");
 const jwt = require("jsonwebtoken");
 const Joi = require("joi");
 const authMiddleware = require("../../middleware/jwt.js");
+const gravatar = require("gravatar");
+const fs = require("fs").promises;
+const path = require("path");
+const multer = require("multer");
+const { v4: uuidV4 } = require("uuid");
 
 const router = express.Router();
 
@@ -29,12 +34,16 @@ router.post("/signup", async (req, res, next) => {
   }
   try {
     const newUser = new User({ email, password });
+    const gravatarURL = gravatar.url(email);
+    console.log(gravatarURL);
     await newUser.setPassword(password);
+    newUser.avatarURL = gravatarURL;
     await newUser.save();
     return res.status(201).json({
       user: {
         email: email,
         subscription: newUser.subscription,
+        avatarURL: newUser.avatarURL,
       },
     });
   } catch (e) {
@@ -72,6 +81,7 @@ router.post("/login", async (req, res, next) => {
         user: {
           email: user.email,
           subscription: user.subscription,
+          avatarURL: user.avatarURL,
         },
       });
     } else {
@@ -102,10 +112,69 @@ router.get("/current", authMiddleware, async (req, res, next) => {
     return res.status(200).json({
       email: currentUser.email,
       subscription: currentUser.subscription,
+      avatarURL: currentUser.avatarURL,
     });
   } catch (err) {
     next(err);
   }
 });
+
+// konfiguracja multera
+
+const tempDir = path.join(process.cwd(), "../../temp");
+const storeAvatarDir = path.join(process.cwd(), "../../public/avatars");
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, tempDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${uuidV4()}${file.originalname}`);
+  },
+});
+
+const extensionWhiteList = [".jpg", ".jpeg", ".png", ".gif"];
+const mimetypeWhiteList = ["image/png", "image/jpg", "image/jpeg", "image/gif"];
+
+const uploadMiddleware = multer({
+  storage,
+  fileFilter: async (req, file, cb) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    const mimetype = file.mimetype;
+    if (
+      !extensionWhiteList.includes(extension) ||
+      !mimetypeWhiteList.includes(mimetype)
+    ) {
+      return cb(null, false);
+    }
+    return cb(null, true);
+  },
+  limits: {
+    fileSize: 1024 * 1024 * 5,
+  },
+});
+
+router.post(
+  "/avatars",
+  authMiddleware,
+  uploadMiddleware.single("picture"),
+  async (req, res, next) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "File isn't a photo" });
+    }
+
+    const { path: temporaryPath } = req.file;
+    const extension = path.extname(temporaryPath);
+    const fileName = `${uuidV4()}${extension}`;
+    const filePath = path.join(storeAvatarDir, fileName);
+
+    try {
+      const currentUser = res.locals.user;
+      return res.status(200).json({ avatarURL: currentUser.avatarURL });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 module.exports = router;
