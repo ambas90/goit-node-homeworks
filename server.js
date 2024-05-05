@@ -1,4 +1,5 @@
 const express = require("express");
+const path = require("path");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const apiRouter = require("./routes/api");
@@ -11,6 +12,8 @@ const { DB_HOST: urlDb } = process.env;
 const connection = mongoose.connect(urlDb, { dbName: "db-contacts" });
 
 const app = express();
+
+app.use(express.static(path.resolve(__dirname, "./public")));
 
 app.use(express.json());
 app.use(cors());
